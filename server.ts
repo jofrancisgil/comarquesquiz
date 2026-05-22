@@ -51,7 +51,7 @@ async function startServer() {
     });
 
     socket.on('joinRoom', ({ code, playerName }, callback) => {
-      const room = rooms.get(code.toUpperCase());
+      const room = rooms.get(code.toUpperCase().trim());
       if (!room) {
         return callback({ error: 'Sala no trobada' });
       }

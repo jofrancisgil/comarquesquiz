@@ -25,7 +25,7 @@ export function MultiplayerLobby({ room, isHost, onCreateRoom, onJoinRoom, onSta
             type="text" 
             placeholder="Codi de la Sala (EX: A1B2)" 
             value={joinCode} 
-            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase().trim())}
             maxLength={4}
             className="p-3 border border-neutral-300 rounded-xl font-mono text-center text-xl uppercase"
           />
