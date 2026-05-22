@@ -1,4 +1,4 @@
-export type GameStatus = 'idle' | 'playing' | 'answering' | 'finished';
+export type GameStatus = 'idle' | 'playing' | 'answering' | 'finished' | 'round_results';
 
 export interface ComarcaInfo {
   id: string;
@@ -14,13 +14,14 @@ export interface Player {
   score: number;
   streak: number;
   answeredCorrectly: boolean;
+  hasAnswered: boolean;
 }
 
 export interface Room {
   code: string;
   host: string;
   players: Player[];
-  status: 'waiting' | 'playing' | 'finished';
+  status: 'waiting' | 'playing' | 'round_results' | 'finished';
   state: any;
 }
 
@@ -35,4 +36,5 @@ export interface GameState {
   playMode: PlayMode;
   room?: Room | null;
   isHost?: boolean;
+  totalQuestions?: number;
 }

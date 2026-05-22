@@ -64,6 +64,7 @@ async function startServer() {
         name: playerName,
         score: 0,
         answeredCorrectly: false,
+        hasAnswered: false,
         streak: 0
       };
       
@@ -94,9 +95,12 @@ async function startServer() {
       if (room && room.host === socket.id) {
         if (room.state) {
           room.state.currentIndex++;
-          room.players.forEach(p => p.answeredCorrectly = false);
+          room.players.forEach(p => { p.answeredCorrectly = false; p.hasAnswered = false; });
+          
           if (room.state.currentIndex >= room.state.allComarcas.length) {
             room.status = 'finished';
+          } else {
+            room.status = 'playing';
           }
           io.to(code).emit('roomUpdate', room);
         }
@@ -107,14 +111,22 @@ async function startServer() {
        const room = rooms.get(code);
        if (room && room.status === 'playing') {
           const player = room.players.find(p => p.id === socket.id);
-          if (player && !player.answeredCorrectly) {
+          if (player && !player.hasAnswered) {
+             player.hasAnswered = true;
              if (isCorrect) {
-                player.score += 10;
+                player.score += 10 * (player.streak + 1); // fix score logic taking streak into account like client
                 player.streak++;
                 player.answeredCorrectly = true;
              } else {
                 player.streak = 0;
+                player.answeredCorrectly = false;
              }
+             
+             const allAnswered = room.players.every(p => p.hasAnswered);
+             if (allAnswered) {
+                room.status = 'round_results';
+             }
+             
              io.to(code).emit('roomUpdate', room);
           }
        }

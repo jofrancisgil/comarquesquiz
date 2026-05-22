@@ -65,8 +65,22 @@ export default function App() {
             };
         }
         
+        if (!isHost && roomData.status === 'round_results') {
+           return { ...prev, room: roomData, status: 'round_results' };
+        }
+        
         if (!isHost && roomData.status === 'finished') {
            return { ...prev, room: roomData, status: 'finished' };
+        }
+
+        if (isHost && roomData.status === 'playing' && roomData.state) {
+            const { mode, allComarcas: roomComarcas, currentIndex } = roomData.state;
+            const currentTargetId = roomComarcas[currentIndex] || null;
+            return { ...prev, room: roomData, status: 'playing', playMode: mode, currentTargetId };
+        }
+        
+        if (isHost && (roomData.status === 'round_results' || roomData.status === 'finished')) {
+            return { ...prev, room: roomData, status: roomData.status };
         }
 
         return { ...prev, room: roomData, score: newScore, streak: newStreak };
@@ -109,25 +123,38 @@ export default function App() {
     socket?.disconnect();
     const s = io();
     setSocket(s);
-    setGameState(prev => ({ ...prev, room: null, isHost: false, status: 'idle' }));
+    setGameState(prev => ({ 
+       ...prev, 
+       room: null, 
+       isHost: false, 
+       status: 'idle',
+       remainingIds: [],
+       currentTargetId: null,
+       selectedId: null,
+       options: []
+    }));
+    setFeedback(null);
   };
 
-  const startMultiplayerGame = (mode: PlayMode) => {
+  const startMultiplayerGame = (mode: PlayMode, numQuestions: number = 43) => {
     if (allComarcas.length === 0 || !gameState.room) return;
-    const shuffledIds = shuffleArray(allComarcas.map((c) => c.id));
+    let shuffledIds = shuffleArray(allComarcas.map((c) => c.id));
+    if (numQuestions < 43) {
+       shuffledIds = shuffledIds.slice(0, numQuestions);
+    }
     socket?.emit('startGame', { code: gameState.room.code, allComarcas: shuffledIds, mode });
-    setGameState(prev => ({ ...prev, remainingIds: shuffledIds, playMode: mode }));
-    setTimeout(() => {
-       nextRound(shuffledIds);
-    }, 100);
   };
 
-  const startGame = (mode: PlayMode) => {
+  const startGame = (mode: PlayMode, numQuestions: number = 43) => {
     if (allComarcas.length === 0) return;
     
-    const shuffledIds: string[] = shuffleArray(allComarcas.map((c: ComarcaInfo) => c.id));
+    let shuffledIds: string[] = shuffleArray(allComarcas.map((c: ComarcaInfo) => c.id));
+    if (numQuestions < 43) {
+       shuffledIds = shuffledIds.slice(0, numQuestions);
+    }
     
-    setGameState({
+    setGameState(prev => ({
+      ...prev,
       status: 'idle',
       score: 0,
       streak: 0,
@@ -136,7 +163,8 @@ export default function App() {
       options: [],
       selectedId: null,
       playMode: mode,
-    });
+      totalQuestions: shuffledIds.length
+    }));
     setFeedback(null);
     
     setTimeout(() => {
@@ -154,11 +182,6 @@ export default function App() {
     const nextTargetId = currentRemaining[0];
     const newRemaining = currentRemaining.slice(1);
     const nextOptions = generateOptions(nextTargetId, allComarcas);
-    
-    // In multiplayer, host tells server to advance
-    if (gameState.room && gameState.isHost) {
-      socket?.emit('nextRound', { code: gameState.room.code });
-    }
 
     setGameState(prev => ({
       ...prev,
@@ -214,6 +237,12 @@ export default function App() {
     }, isCorrect ? 1500 : 2500);
   };
 
+  const handleNextMultiplayerRound = () => {
+    if (gameState.room && gameState.isHost) {
+      socket?.emit('nextRound', { code: gameState.room.code });
+    }
+  };
+
   return (
     <div className="h-screen w-full bg-neutral-50 flex flex-col font-sans text-neutral-900 select-none overflow-hidden relative">
       <header className="h-20 md:h-24 px-4 md:px-8 flex items-center justify-between border-b border-neutral-200 bg-white shadow-sm z-20 shrink-0">
@@ -226,7 +255,16 @@ export default function App() {
           </h1>
         </div>
         
-        <div className="flex gap-2 md:gap-6">
+        <div className="flex gap-2 md:gap-6 items-center">
+          {(gameState.status !== 'idle' || gameState.room) && (
+            <button 
+               onClick={handleLeaveRoom} // Which resets to idle.
+               className="bg-neutral-800 hover:bg-neutral-900 text-white px-3 md:px-5 py-2 md:py-3 rounded-[12px] md:rounded-2xl font-bold uppercase tracking-widest text-[10px] md:text-xs transition-colors shrink-0"
+               title="Sortir / Tornar enrere"
+            >
+               Sortir
+            </button>
+          )}
           <div className="bg-neutral-100 px-3 md:px-6 py-1 md:py-2 rounded-[12px] md:rounded-2xl border border-neutral-200 flex flex-col items-center min-w-[80px] md:min-w-[120px]">
             <span className="text-[8px] md:text-[10px] uppercase font-bold text-neutral-500">Puntuació</span>
             <span className="text-lg md:text-2xl font-black tabular-nums">{gameState.score.toString().padStart(4, '0')}</span>
@@ -243,8 +281,8 @@ export default function App() {
           <GameStats 
             score={gameState.score}
             streak={gameState.streak}
-            remaining={gameState.remainingIds.length}
-            total={allComarcas.length}
+            remaining={gameState.room && gameState.room.state ? (gameState.room.state.allComarcas.length - gameState.room.state.currentIndex) : gameState.remainingIds.length}
+            total={gameState.room ? (gameState.room.state?.allComarcas?.length || 0) : (gameState.totalQuestions || allComarcas.length)}
             status={gameState.status}
             feedback={feedback}
             playMode={gameState.playMode}
@@ -259,6 +297,7 @@ export default function App() {
                onJoinRoom={handleJoinRoom}
                onStartMultiplayerGame={startMultiplayerGame}
                onLeaveRoom={handleLeaveRoom}
+               onNextRound={handleNextMultiplayerRound}
             />
           </div>
         </div>
@@ -287,14 +326,16 @@ export default function App() {
         </div>
       </main>
 
-      <OptionsPanel 
-          options={gameState.options}
-          selectedId={gameState.selectedId}
-          currentTargetId={gameState.currentTargetId}
-          status={gameState.status}
-          playMode={gameState.playMode}
-          onSelectOption={handleSelectOption}
-      />
+      {!gameState.isHost && (
+        <OptionsPanel 
+            options={gameState.options}
+            selectedId={gameState.selectedId}
+            currentTargetId={gameState.currentTargetId}
+            status={gameState.status}
+            playMode={gameState.playMode}
+            onSelectOption={handleSelectOption}
+        />
+      )}
     </div>
   );
 }

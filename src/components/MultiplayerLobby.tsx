@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
-import { Users, UserPlus, Play, LogOut, CheckCircle } from 'lucide-react';
+import { Users, UserPlus, Play, LogOut, CheckCircle, XCircle } from 'lucide-react';
 import { Room } from '../types/game';
 
-interface MultiplayerLobbyProps {
+export interface MultiplayerLobbyProps {
   room: Room | null;
   isHost: boolean;
   onCreateRoom: () => void;
   onJoinRoom: (code: string, name: string) => void;
-  onStartMultiplayerGame: (mode: 'comarca' | 'capital') => void;
+  onStartMultiplayerGame: (mode: 'comarca' | 'capital', numQuestions: number) => void;
   onLeaveRoom: () => void;
+  onNextRound?: () => void;
 }
 
-export function MultiplayerLobby({ room, isHost, onCreateRoom, onJoinRoom, onStartMultiplayerGame, onLeaveRoom }: MultiplayerLobbyProps) {
+export function MultiplayerLobby({ room, isHost, onCreateRoom, onJoinRoom, onStartMultiplayerGame, onLeaveRoom, onNextRound }: MultiplayerLobbyProps) {
   const [joinCode, setJoinCode] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [view, setView] = useState<'menu' | 'join'>('menu');
+  const [selectedNum, setSelectedNum] = useState<number>(43);
 
   if (!room) {
     if (view === 'join') {
@@ -104,7 +106,9 @@ export function MultiplayerLobby({ room, isHost, onCreateRoom, onJoinRoom, onSta
               <li key={p.id} className="flex justify-between items-center text-sm font-medium bg-white p-2 rounded border border-neutral-100 shadow-sm">
                 <span>{p.name} <span className="text-xs text-neutral-400">(Score: {p.score})</span></span>
                 {room.status === 'playing' ? (
-                   p.answeredCorrectly ? <CheckCircle className="w-4 h-4 text-green-500" /> : <div className="w-4 h-4 rounded-full border-2 border-dashed border-neutral-300 animate-spin-slow"></div>
+                   p.hasAnswered ? <div className="w-3 h-3 rounded-full bg-neutral-400"></div> : <div className="w-4 h-4 rounded-full border-2 border-dashed border-neutral-300 animate-spin-slow"></div>
+                ) : room.status === 'round_results' ? (
+                   p.answeredCorrectly ? <CheckCircle className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />
                 ) : (
                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
                 )}
@@ -115,20 +119,43 @@ export function MultiplayerLobby({ room, isHost, onCreateRoom, onJoinRoom, onSta
       </div>
 
       {isHost && room.status === 'waiting' && (
-        <div className="flex gap-2">
-          <button 
-            onClick={() => onStartMultiplayerGame('comarca')}
-            className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-1 text-xs"
-          >
-            <Play className="w-4 h-4" /> INICIAR (COMARCA)
-          </button>
-          <button 
-            onClick={() => onStartMultiplayerGame('capital')}
-            className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold flex items-center justify-center gap-1 text-xs"
-          >
-            <Play className="w-4 h-4" /> INICIAR (CAPITAL)
-          </button>
+        <div className="flex flex-col gap-3 mt-2 border-t pt-4">
+           <span className="text-xs font-bold uppercase tracking-widest text-neutral-400 block mb-1">Nombre de preguntes</span>
+           <div className="flex gap-2 mb-2">
+             {[10, 20, 30, 43].map(num => (
+               <button 
+                 key={num}
+                 onClick={() => setSelectedNum(num)}
+                 className={`flex-1 py-1 rounded-lg text-sm font-bold transition-colors ${selectedNum === num ? 'bg-indigo-600 text-white' : 'bg-neutral-200 text-neutral-600 hover:bg-neutral-300'}`}
+               >
+                 {num === 43 ? 'Totes' : num}
+               </button>
+             ))}
+           </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => onStartMultiplayerGame('comarca', selectedNum)}
+              className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-1 text-xs"
+            >
+              <Play className="w-4 h-4" /> INICIAR (COMARCA)
+            </button>
+            <button 
+              onClick={() => onStartMultiplayerGame('capital', selectedNum)}
+              className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold flex items-center justify-center gap-1 text-xs"
+            >
+              <Play className="w-4 h-4" /> INICIAR (CAPITAL)
+            </button>
+          </div>
         </div>
+      )}
+
+      {isHost && room.status === 'round_results' && onNextRound && (
+        <button 
+          onClick={onNextRound}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+        >
+          SEGÜENT PREGUNTA <Play className="w-4 h-4" />
+        </button>
       )}
 
       {isHost && room.status === 'finished' && (
@@ -136,13 +163,13 @@ export function MultiplayerLobby({ room, isHost, onCreateRoom, onJoinRoom, onSta
           <div className="text-center font-bold text-green-600">¡Partida Completada!</div>
           <div className="flex gap-2">
             <button 
-              onClick={() => onStartMultiplayerGame('comarca')}
+              onClick={() => onStartMultiplayerGame('comarca', selectedNum)}
               className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-1 text-xs"
             >
               <Play className="w-4 h-4" /> REINICIAR (COMARCA)
             </button>
             <button 
-              onClick={() => onStartMultiplayerGame('capital')}
+              onClick={() => onStartMultiplayerGame('capital', selectedNum)}
               className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold flex items-center justify-center gap-1 text-xs"
             >
               <Play className="w-4 h-4" /> REINICIAR (CAPITAL)
