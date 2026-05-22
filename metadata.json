@@ -1,0 +1,8 @@
+{
+  "name": "Geoguess Cataluña",
+  "description": "Juego educativo interactivo para aprender las comarcas de Cataluña.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
